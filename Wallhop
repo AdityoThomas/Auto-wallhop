@@ -1,0 +1,70 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+
+-- Setup ulang saat respawn
+local function setupWallhop(character)
+	local humanoid = character:WaitForChild("Humanoid")
+	local hrp = character:WaitForChild("HumanoidRootPart")
+	local camera = workspace.CurrentCamera
+
+	local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+	screenGui.Name = "FastWallhopGUI"
+
+	local toggleBtn = Instance.new("TextButton")
+	toggleBtn.Size = UDim2.new(0, 120, 0, 50)
+	toggleBtn.Position = UDim2.new(0, 10, 1, -60)
+	toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+	toggleBtn.Font = Enum.Font.GothamBold
+	toggleBtn.TextScaled = true
+	toggleBtn.Text = "Wallhop: OFF"
+	toggleBtn.Parent = screenGui
+
+	local wallhopEnabled = false
+	local isWallhopping = false
+
+	toggleBtn.MouseButton1Click:Connect(function()
+		wallhopEnabled = not wallhopEnabled
+		toggleBtn.Text = wallhopEnabled and "Wallhop: ON" or "Wallhop: OFF"
+	end)
+
+	local function rotateCameraInstant(degrees)
+		local cf = camera.CFrame
+		camera.CFrame = cf * CFrame.Angles(0, math.rad(degrees), 0)
+		task.wait(0.05)
+		camera.CFrame = cf
+	end
+
+	RunService.Heartbeat:Connect(function()
+		if not wallhopEnabled or isWallhopping then return end
+
+		local rayOrigin = hrp.Position
+		local rayDirection = hrp.CFrame.LookVector * 2
+
+		local raycastParams = RaycastParams.new()
+		raycastParams.FilterDescendantsInstances = {character}
+		raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+		local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+		if result and humanoid.FloorMaterial == Enum.Material.Air then
+			isWallhopping = true
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+
+			coroutine.wrap(function()
+				rotateCameraInstant(90)
+				task.wait(0.1)
+				isWallhopping = false
+			end)()
+		end
+	end)
+end
+
+-- Jalankan pertama kali
+setupWallhop(char)
+
+-- Deteksi respawn
+player.CharacterAdded:Connect(setupWallhop)
