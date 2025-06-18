@@ -1,77 +1,77 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local char = player.Character or player.CharacterAdded:Wait()
 
 local function setupWallhop(character)
 	local humanoid = character:WaitForChild("Humanoid")
 	local hrp = character:WaitForChild("HumanoidRootPart")
 	local camera = workspace.CurrentCamera
 
+	-- GUI setup
 	local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-	screenGui.Name = "SmartWallhopGUI"
-	screenGui.ResetOnSpawn = false
+	screenGui.Name = "WallhopGui"
 
-	local toggleBtn = Instance.new("TextButton")
-	toggleBtn.Size = UDim2.new(0, 130, 0, 50)
-	toggleBtn.Position = UDim2.new(0, 10, 1, -60)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-	toggleBtn.TextColor3 = Color3.new(1, 1, 1)
-	toggleBtn.Font = Enum.Font.GothamBold
-	toggleBtn.TextScaled = true
-	toggleBtn.Text = "Wallhop: OFF"
-	toggleBtn.Parent = screenGui
-	toggleBtn.Active = true
-	toggleBtn.Draggable = true
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(0, 140, 0, 50)
+	button.Position = UDim2.new(0, 10, 1, -60)
+	button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.GothamBold
+	button.TextScaled = true
+	button.Text = "Wallhop: OFF"
+	button.Draggable = true
+	button.Active = true
+	button.Selectable = true
+	button.Parent = screenGui
 
 	local wallhopEnabled = false
 	local isWallhopping = false
 
-	toggleBtn.MouseButton1Click:Connect(function()
+	button.MouseButton1Click:Connect(function()
 		wallhopEnabled = not wallhopEnabled
-		toggleBtn.Text = wallhopEnabled and "Wallhop: ON" or "Wallhop: OFF"
+		button.Text = wallhopEnabled and "Wallhop: ON" or "Wallhop: OFF"
 	end)
 
 	RunService.Heartbeat:Connect(function()
 		if not wallhopEnabled or isWallhopping then return end
-		if humanoid.FloorMaterial ~= Enum.Material.Air then return end
 
-		local origin = hrp.Position
-		local direction = hrp.CFrame.LookVector * 3
+		local footPos = hrp.Position - Vector3.new(0, 2.5, 0)
+		local size = Vector3.new(2, 1, 2)
+		local region = Region3.new(footPos - size / 2, footPos + size / 2)
 
-		local rayParams = RaycastParams.new()
-		rayParams.FilterDescendantsInstances = {character}
-		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+		local partsInRegion = workspace:FindPartsInRegion3(region, character, 10)
+		local colorSet = {}
 
-		local result1 = workspace:Raycast(origin, direction, rayParams)
-		if not result1 then return end
-
-		local nearOrigin = origin + hrp.CFrame.LookVector * 0.5
-		local nearbyResult = workspace:Raycast(nearOrigin, hrp.CFrame.RightVector * 1, rayParams)
-
-		if nearbyResult and result1.Instance and nearbyResult.Instance then
-			local partA = result1.Instance
-			local partB = nearbyResult.Instance
-
-			if partA:IsA("BasePart") and partB:IsA("BasePart") and partA ~= partB then
-				local colorA = partA.Color
-				local colorB = partB.Color
-
-				local distance = (partA.Position - partB.Position).Magnitude
-
-				if colorA ~= colorB and distance <= 4 then
-					isWallhopping = true
-					humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-
-					task.wait(0.05)
-					isWallhopping = false
-				end
+		for _, part in pairs(partsInRegion) do
+			if part:IsA("BasePart") then
+				colorSet[tostring(part.Color)] = true
 			end
+		end
+
+		local colorCount = 0
+		for _ in pairs(colorSet) do
+			colorCount += 1
+		end
+
+		if colorCount >= 2 then
+			isWallhopping = true
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+
+			task.delay(0.1, function()
+				isWallhopping = false
+			end)
 		end
 	end)
 end
 
+-- Jalankan pertama kali
+local char = player.Character or player.CharacterAdded:Wait()
 setupWallhop(char)
-player.CharacterAdded:Connect(setupWallhop)
+
+-- Deteksi respawn
+player.CharacterAdded:Connect(function(newChar)
+	wait(0.1)
+	setupWallhop(newChar)
+end)
