@@ -1,67 +1,44 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local char = player.Character or player.CharacterAdded:Wait()
-
--- Fungsi setup ulang saat respawn
 local function setupWallhop(character)
 	local humanoid = character:WaitForChild("Humanoid")
 	local hrp = character:WaitForChild("HumanoidRootPart")
 	local camera = workspace.CurrentCamera
 
-	-- Hapus GUI lama kalau ada
-	local oldGui = player:FindFirstChild("PlayerGui"):FindFirstChild("FastWallhopGUI")
-	if oldGui then oldGui:Destroy() end
-
-	local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-	screenGui.Name = "FastWallhopGUI"
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "WallhopGUI"
+	screenGui.Parent = player:WaitForChild("PlayerGui")
 	screenGui.ResetOnSpawn = false
 
 	local toggleBtn = Instance.new("TextButton")
 	toggleBtn.Size = UDim2.new(0, 120, 0, 50)
-	toggleBtn.Position = UDim2.new(0, 10, 1, -60)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-	toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+	toggleBtn.Position = UDim2.new(0, 20, 1, -80)
+	toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	toggleBtn.Font = Enum.Font.GothamBold
 	toggleBtn.TextScaled = true
 	toggleBtn.Text = "Wallhop: OFF"
 	toggleBtn.Parent = screenGui
+	toggleBtn.Active = true
+	toggleBtn.Draggable = true
 
 	local wallhopEnabled = false
 	local isWallhopping = false
 
-	-- Toggle tombol
 	toggleBtn.MouseButton1Click:Connect(function()
 		wallhopEnabled = not wallhopEnabled
 		toggleBtn.Text = wallhopEnabled and "Wallhop: ON" or "Wallhop: OFF"
 	end)
 
-	-- Fungsi rotasi kamera smooth
-	local function rotateCameraSmooth(degrees, duration)
-		local originalCFrame = camera.CFrame
-		local rotatedCFrame = originalCFrame * CFrame.Angles(0, math.rad(degrees), 0)
-
-		local tween = TweenService:Create(camera, TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			CFrame = rotatedCFrame
-		})
-		tween:Play()
-		tween.Completed:Wait()
-
-		task.wait(0.1) -- Delay sebelum balik
-		local backTween = TweenService:Create(camera, TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			CFrame = originalCFrame
-		})
-		backTween:Play()
-	end
-
-	-- Deteksi wallhop otomatis
 	RunService.Heartbeat:Connect(function()
 		if not wallhopEnabled or isWallhopping then return end
+		if humanoid.FloorMaterial ~= Enum.Material.Air then return end
 
 		local rayOrigin = hrp.Position
-		local rayDirection = hrp.CFrame.LookVector * 2
+		local rayDirection = hrp.CFrame.LookVector * 3
 
 		local raycastParams = RaycastParams.new()
 		raycastParams.FilterDescendantsInstances = {character}
@@ -69,21 +46,30 @@ local function setupWallhop(character)
 
 		local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 
-		if result and humanoid.FloorMaterial == Enum.Material.Air then
-			isWallhopping = true
-			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		if result and result.Instance and result.Instance:IsA("BasePart") then
+			local part = result.Instance
+			local surface = result.Position
 
-			coroutine.wrap(function()
-				rotateCameraSmooth(90, 0.25) -- << Ubah angka 0.25 ini untuk atur kecepatan
-				task.wait(0.1)
+			-- Deteksi dua warna pada satu part
+			local x = math.floor((surface - part.Position).X + part.Size.X/2)
+			local y = math.floor((surface - part.Position).Y + part.Size.Y/2)
+			local z = math.floor((surface - part.Position).Z + part.Size.Z/2)
+
+			local color1 = part.Color
+			local secondColor = part:FindFirstChildWhichIsA("Decal") or part:FindFirstChildWhichIsA("Texture")
+
+			if secondColor and (color1 ~= secondColor.Color3) then
+				isWallhopping = true
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+				task.wait(0.05)
 				isWallhopping = false
-			end)()
+			end
 		end
 	end)
 end
 
--- Jalankan pertama kali
-setupWallhop(char)
+if player.Character then
+	setupWallhop(player.Character)
+end
 
--- Deteksi respawn
 player.CharacterAdded:Connect(setupWallhop)
