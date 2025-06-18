@@ -5,73 +5,86 @@ local camera = workspace.CurrentCamera
 
 local function setupWallhop(character)
 	local humanoid = character:WaitForChild("Humanoid")
-	local root = character:WaitForChild("HumanoidRootPart")
+	local hrp = character:WaitForChild("HumanoidRootPart")
 
 	local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-	gui.Name = "WallhopGui"
+	gui.Name = "WallhopGUI"
 	gui.ResetOnSpawn = false
 
-	local toggle = Instance.new("TextButton")
-	toggle.Size = UDim2.new(0, 140, 0, 50)
-	toggle.Position = UDim2.new(0, 20, 1, -80)
-	toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	toggle.TextColor3 = Color3.new(1, 1, 1)
-	toggle.Font = Enum.Font.GothamBold
-	toggle.TextScaled = true
-	toggle.Text = "Wallhop: OFF"
-	toggle.Active = true
-	toggle.Draggable = true
-	toggle.Parent = gui
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(0, 130, 0, 50)
+	button.Position = UDim2.new(0, 10, 1, -60)
+	button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	button.TextColor3 = Color3.new(1,1,1)
+	button.Font = Enum.Font.GothamBold
+	button.TextScaled = true
+	button.Text = "Wallhop: OFF"
+	button.Draggable = true
+	button.Active = true
+	button.Parent = gui
 
-	local wallhopOn = false
-	local hopping = false
+	local enabled = false
+	local isHopping = false
 
-	toggle.MouseButton1Click:Connect(function()
-		wallhopOn = not wallhopOn
-		toggle.Text = wallhopOn and "Wallhop: ON" or "Wallhop: OFF"
+	button.MouseButton1Click:Connect(function()
+		enabled = not enabled
+		button.Text = enabled and "Wallhop: ON" or "Wallhop: OFF"
 	end)
 
-	local function rotateCamInstant(degrees)
+	local function isTouchingWallEdge()
+		local origin = hrp.Position - Vector3.new(0, 2.3, 0)
+		local range = 0.5
+
+		local raycastParams = RaycastParams.new()
+		raycastParams.FilterDescendantsInstances = {character}
+		raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+		local directions = {
+			Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0),
+			Vector3.new(0, 0, 1), Vector3.new(0, 0, -1)
+		}
+
+		for _, dir in ipairs(directions) do
+			local r1 = workspace:Raycast(origin, dir * range, raycastParams)
+			local r2 = workspace:Raycast(origin, dir * -range, raycastParams)
+			if r1 and r2 and r1.Instance ~= r2.Instance then
+				local dist = (r1.Position - r2.Position).Magnitude
+				if dist <= 0.6 then
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local function rotateCameraInstant()
 		local cf = camera.CFrame
-		camera.CFrame = cf * CFrame.Angles(0, math.rad(degrees), 0)
+		camera.CFrame = cf * CFrame.Angles(0, math.rad(90), 0)
+		task.wait(0.01)
+		camera.CFrame = cf
 	end
 
 	RunService.Heartbeat:Connect(function()
-		if not wallhopOn or hopping then return end
-		if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then return end
+		if not enabled or isHopping or humanoid.FloorMaterial ~= Enum.Material.Air then return end
 
-		-- Dua raycast ke bawah dari kiri dan kanan kaki
-		local offset = 1.2
-		local leftOrigin = root.Position + root.CFrame.RightVector * -offset
-		local rightOrigin = root.Position + root.CFrame.RightVector * offset
-		local direction = Vector3.new(0, -3, 0)
-
-		local params = RaycastParams.new()
-		params.FilterDescendantsInstances = {character}
-		params.FilterType = Enum.RaycastFilterType.Blacklist
-
-		local leftResult = workspace:Raycast(leftOrigin, direction, params)
-		local rightResult = workspace:Raycast(rightOrigin, direction, params)
-
-		if leftResult and rightResult and leftResult.Instance ~= rightResult.Instance then
-			local dist = (leftResult.Position - rightResult.Position).Magnitude
-			if dist <= 0.5 then
-				hopping = true
-				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-				rotateCamInstant(90)
-				task.wait(0.1)
-				hopping = false
-			end
+		if isTouchingWallEdge() then
+			isHopping = true
+			rotateCameraInstant()
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			task.wait(0.2)
+			isHopping = false
 		end
 	end)
 end
 
--- Inisialisasi awal dan saat respawn
-local function onCharacterAdded(character)
-	setupWallhop(character)
+-- Setup awal dan saat respawn
+local function init()
+	local char = player.Character or player.CharacterAdded:Wait()
+	setupWallhop(char)
+	player.CharacterAdded:Connect(function(c)
+		wait(1)
+		setupWallhop(c)
+	end)
 end
 
-if player.Character then
-	onCharacterAdded(player.Character)
-end
-player.CharacterAdded:Connect(onCharacterAdded)
+init()
