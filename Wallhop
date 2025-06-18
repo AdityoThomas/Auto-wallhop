@@ -34,7 +34,7 @@ local function setupWallhop(character)
 	local function rotateCameraInstant(degrees)
 		local cf = camera.CFrame
 		camera.CFrame = cf * CFrame.Angles(0, math.rad(degrees), 0)
-		task.wait(0.05)
+		task.wait(0.1)
 		camera.CFrame = cf
 	end
 
