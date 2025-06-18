@@ -6,69 +6,67 @@ local camera = workspace.CurrentCamera
 local function setupWallhop(character)
 	local humanoid = character:WaitForChild("Humanoid")
 	local root = character:WaitForChild("HumanoidRootPart")
+
 	local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 	gui.Name = "WallhopGui"
 	gui.ResetOnSpawn = false
 
-	local button = Instance.new("TextButton", gui)
-	button.Size = UDim2.new(0, 140, 0, 50)
-	button.Position = UDim2.new(0, 20, 1, -80)
-	button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.Font = Enum.Font.GothamBold
-	button.TextScaled = true
-	button.Text = "Wallhop: OFF"
-	button.Draggable = true
-	button.Active = true
+	local toggle = Instance.new("TextButton")
+	toggle.Size = UDim2.new(0, 140, 0, 50)
+	toggle.Position = UDim2.new(0, 20, 1, -80)
+	toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	toggle.TextColor3 = Color3.new(1, 1, 1)
+	toggle.Font = Enum.Font.GothamBold
+	toggle.TextScaled = true
+	toggle.Text = "Wallhop: OFF"
+	toggle.Active = true
+	toggle.Draggable = true
+	toggle.Parent = gui
 
 	local wallhopOn = false
 	local hopping = false
 
-	button.MouseButton1Click:Connect(function()
+	toggle.MouseButton1Click:Connect(function()
 		wallhopOn = not wallhopOn
-		button.Text = wallhopOn and "Wallhop: ON" or "Wallhop: OFF"
+		toggle.Text = wallhopOn and "Wallhop: ON" or "Wallhop: OFF"
 	end)
 
-	local function rotateCamInstant(deg)
+	local function rotateCamInstant(degrees)
 		local cf = camera.CFrame
-		camera.CFrame = cf * CFrame.Angles(0, math.rad(deg), 0)
+		camera.CFrame = cf * CFrame.Angles(0, math.rad(degrees), 0)
 	end
 
 	RunService.Heartbeat:Connect(function()
 		if not wallhopOn or hopping then return end
-		if humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+		if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then return end
 
-			local feetPos = root.Position - Vector3.new(0, 2, 0)
-			local size = Vector3.new(2, 0.5, 2)
-			local region = Region3.new(feetPos - size/2, feetPos + size/2)
-			local touchingParts = workspace:FindPartsInRegion3(region, character, 10)
+		-- Dua raycast ke bawah dari kiri dan kanan kaki
+		local offset = 1.2
+		local leftOrigin = root.Position + root.CFrame.RightVector * -offset
+		local rightOrigin = root.Position + root.CFrame.RightVector * offset
+		local direction = Vector3.new(0, -3, 0)
 
-			local partMap = {}
-			for _, part in ipairs(touchingParts) do
-				if part:IsA("BasePart") then
-					local key = part.Position.Magnitude
-					partMap[key] = true
-				end
-			end
+		local params = RaycastParams.new()
+		params.FilterDescendantsInstances = {character}
+		params.FilterType = Enum.RaycastFilterType.Blacklist
 
-			if #touchingParts >= 2 and next(partMap) then
-				local pos1 = touchingParts[1].Position
-				local pos2 = touchingParts[2].Position
-				local distance = (pos1 - pos2).Magnitude
+		local leftResult = workspace:Raycast(leftOrigin, direction, params)
+		local rightResult = workspace:Raycast(rightOrigin, direction, params)
 
-				if distance <= 0.5 then
-					hopping = true
-					humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-					rotateCamInstant(90)
-					task.wait(0.1)
-					hopping = false
-				end
+		if leftResult and rightResult and leftResult.Instance ~= rightResult.Instance then
+			local dist = (leftResult.Position - rightResult.Position).Magnitude
+			if dist <= 0.5 then
+				hopping = true
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+				rotateCamInstant(90)
+				task.wait(0.1)
+				hopping = false
 			end
 		end
 	end)
 end
 
--- Inisialisasi awal
+-- Inisialisasi awal dan saat respawn
 local function onCharacterAdded(character)
 	setupWallhop(character)
 end
